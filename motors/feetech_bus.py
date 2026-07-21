@@ -106,28 +106,10 @@ class FeetechMotorsBus(MotorsBus):
 
     @staticmethod
     def _patch_port_handler(port_handler) -> None:
-        """
-        Patch PortHandler to fix scservo_sdk bug.
+        """Patch PortHandler to fix scservo_sdk bug (see utils.utils.patch_port_handler_timeout)."""
+        from utils.utils import patch_port_handler_timeout
 
-        HACK: This patches the PortHandler behavior to set the correct packet timeouts.
-        It fixes https://gitee.com/ftservo/SCServoSDK/issues/IBY2S6
-        The bug is fixed on the official Feetech SDK repo (https://gitee.com/ftservo/FTServo_Python)
-        but because that version is not published on PyPI, we rely on the (unofficial) one that is, which needs
-        patching.
-
-        Args:
-            port_handler: PortHandler instance to patch
-        """
-        from scservo_sdk import PortHandler
-
-        def patch_setPacketTimeout(self, packet_length):  # noqa: N802
-            """Patched setPacketTimeout method."""
-            self.packet_start_time = self.getCurrentTime()
-            self.packet_timeout = (
-                (self.tx_time_per_byte * packet_length) + (self.tx_time_per_byte * 3.0) + 50
-            )
-
-        port_handler.setPacketTimeout = patch_setPacketTimeout.__get__(port_handler, PortHandler)
+        patch_port_handler_timeout(port_handler)
 
     def _clear_serial_buffers(self, port_handler) -> None:
         """

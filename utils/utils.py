@@ -555,6 +555,34 @@ def find_available_ports() -> List[str]:
     return sorted(ports)
 
 
+def patch_port_handler_timeout(port_handler) -> None:
+    """
+    Patch a scservo_sdk PortHandler's packet timeout calculation.
+
+    HACK: fixes https://gitee.com/ftservo/SCServoSDK/issues/IBY2S6. The unofficial
+    feetech-servo-sdk package published on PyPI computes too short a read timeout,
+    which truncates responses before a full status packet arrives (observed on
+    macOS with the WCH USB-serial adapters SO101 uses). The bug is fixed on the
+    official Feetech SDK repo (https://gitee.com/ftservo/FTServo_Python) but that
+    version isn't published on PyPI, so callers need to patch the PyPI one.
+
+    Must be called before `port_handler.openPort()`. Any code path that opens its
+    own scservo_sdk PortHandler (rather than going through FeetechBus) needs this.
+
+    Args:
+        port_handler: An scservo_sdk PortHandler instance.
+    """
+    from scservo_sdk import PortHandler
+
+    def _patched_set_packet_timeout(self, packet_length):
+        self.packet_start_time = self.getCurrentTime()
+        self.packet_timeout = (
+            (self.tx_time_per_byte * packet_length) + (self.tx_time_per_byte * 3.0) + 50
+        )
+
+    port_handler.setPacketTimeout = _patched_set_packet_timeout.__get__(port_handler, PortHandler)
+
+
 def is_port_available(port: str) -> bool:
     """
     Check if a specific port exists and is available.
@@ -603,6 +631,7 @@ def test_device_connection(
         # Initialize port handler
         port_handler = PortHandler(port)
         port_handler.setBaudRate(baudrate)
+        patch_port_handler_timeout(port_handler)
 
         # Open port
         if not port_handler.openPort():
@@ -732,6 +761,7 @@ def detect_voltage_rating(port: str, motor_id: int = 1, baudrate: int = 1000000)
         try:
             port_handler = PortHandler(port)
             port_handler.setBaudRate(baudrate)
+            patch_port_handler_timeout(port_handler)
 
             if not port_handler.openPort():
                 logger.info(

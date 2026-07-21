@@ -16,6 +16,7 @@ from utils.utils import (
     detect_voltage_rating,
     find_available_ports,
     find_port,
+    patch_port_handler_timeout,
 )
 
 
@@ -62,6 +63,7 @@ def read_motor_data(
 
     port_handler = PortHandler(port)
     port_handler.setBaudRate(baudrate)
+    patch_port_handler_timeout(port_handler)
 
     if not port_handler.openPort():
         raise ConnectionError(f"Failed to open port: {port}")
